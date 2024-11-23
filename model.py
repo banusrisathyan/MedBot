@@ -5,6 +5,7 @@ from langchain_community.vectorstores import FAISS
 from langchain_community.llms import CTransformers
 from langchain.chains import RetrievalQA
 import chainlit as cl
+import os
 
 DB_FAISS_PATH = 'vectorstore/db_faiss'
 
@@ -26,28 +27,27 @@ def set_custom_prompt():
                             input_variables=['context', 'question'])
     return prompt
 
-#Retrieval QA Chain
+# Retrieval QA Chain
 def retrieval_qa_chain(llm, prompt, db):
     qa_chain = RetrievalQA.from_chain_type(llm=llm,
-                                       chain_type='stuff',
-                                       retriever=db.as_retriever(search_kwargs={'k': 2}),
-                                       return_source_documents=True,
-                                       chain_type_kwargs={'prompt': prompt}
-                                       )
+                                           chain_type='stuff',
+                                           retriever=db.as_retriever(search_kwargs={'k': 2}),
+                                           return_source_documents=True,
+                                           chain_type_kwargs={'prompt': prompt})
     return qa_chain
 
-#Loading the model
+# Loading the model
 def load_llm():
     # Load the locally downloaded model here
     llm = CTransformers(
-        model = "TheBloke/Llama-2-7B-Chat-GGML",
+        model="TheBloke/Llama-2-7B-Chat-GGML",
         model_type="llama",
-        max_new_tokens = 512,
-        temperature = 0.5
+        max_new_tokens=512,
+        temperature=0.5
     )
     return llm
 
-#QA Model Function
+# QA Model Function
 def qa_bot():
     embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2",
                                        model_kwargs={'device': 'cpu'})
@@ -58,13 +58,13 @@ def qa_bot():
 
     return qa
 
-#output function
+# Output Function
 def final_result(query):
     qa_result = qa_bot()
     response = qa_result({'query': query})
     return response
 
-#chainlit code
+# Chainlit code
 @cl.on_chat_start
 async def start():
     chain = qa_bot()
@@ -75,7 +75,6 @@ async def start():
 
     cl.user_session.set("chain", chain)
 
-@cl.on_message
 @cl.on_message
 async def main(message: cl.Message):
     chain = cl.user_session.get("chain")
@@ -97,3 +96,10 @@ async def main(message: cl.Message):
         await cl.Message(content=answer).send()
     except Exception as e:
         await cl.Message(content=f"An error occurred: {str(e)}").send()
+
+# Bind to 0.0.0.0 and PORT for Render
+if __name__ == "__main__":
+    # Get the PORT environment variable from Render (default to 10000)
+    port = int(os.environ.get("PORT", 10000))
+    # Start the Chainlit app, bind to 0.0.0.0, and use the PORT
+    cl.run(host="0.0.0.0", port=port)
